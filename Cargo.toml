@@ -1,0 +1,17 @@
+[package]
+name = "auth"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Lut99" ]
+repository = "https://github.com/Lut99/auth-rs"
+description = "Implements server-side handling for a simple user name/password authentication scheme. Build atop [database](https://github.com/Lut99/database-rs) and for [warp](https://github.com/seanmonstar/warp)."
+
+
+[dependencies]
+# database = { git = "https://github.com/Lut99/database-rs" }
+error-trace = { git = "https://github.com/Lut99/error-trace-rs" }
+log = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+argon2 = "0.5"
+warp = "0.3"
