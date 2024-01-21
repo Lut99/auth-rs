@@ -4,7 +4,7 @@
 //  Created:
 //    02 Jan 2024, 13:45:31
 //  Last edited:
-//    02 Jan 2024, 14:26:48
+//    21 Jan 2024, 17:55:45
 //  Auto updated?
 //    Yes
 //
@@ -19,11 +19,13 @@ use std::fmt::{Display, Formatter, Result as FResult};
 use argon2::password_hash::rand_core::OsRng;
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use argon2::Argon2;
-use log::{debug, info};
+use error_trace::ErrorTrace as _;
+use log::{debug, error, info};
+use warp::hyper::{Body, StatusCode};
 use warp::reject::Rejection;
 use warp::reply::Response;
 
-use crate::spec::{AuthConnector, AuthContext, UserInfo};
+use crate::spec::{AuthConnector, AuthContext, ErrorReply, UserInfo};
 
 
 /***** ERRORS *****/
@@ -45,8 +47,39 @@ impl Error {
     fn into_response(self) -> Response {
         use Error::*;
         match &self {
-            ConnectorUserExists { .. } | PasswordHash { .. } | UserExists { .. } => {
+            ConnectorUserExists { .. } | PasswordHash { .. } => {
+                // Log the internal error first
+                error!("[{}] {}", StatusCode::INTERNAL_SERVER_ERROR.as_u16(), self.trace());
+
                 // Show the error in the thing
+                let mut res: Response = Response::new(
+                    serde_json::to_string(&ErrorReply { id: "internal-error".into(), message: "An internal error has occurred".into() })
+                        .unwrap()
+                        .into(),
+                );
+                *res.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+
+                // Alright done
+                res
+            },
+
+            UserExists { name } => {
+                // Log the internal error first
+                error!("[{}] {}", StatusCode::CONFLICT.as_u16(), self.trace());
+
+                // Show the error in the thing
+                let mut res: Response = Response::new(
+                    serde_json::to_string(&ErrorReply {
+                        id:      "user-exists".into(),
+                        message: format!("A user with name '{name}' already exists"),
+                    })
+                    .unwrap()
+                    .into(),
+                );
+                *res.status_mut() = StatusCode::CONFLICT;
+
+                // Alright done
+                res
             },
         }
     }
@@ -84,7 +117,12 @@ impl error::Error for Error {
 ///
 /// # Arguments
 /// - `context`: An [`AuthContext`] that can be used to access the database containing users, as well as a key for signing stuff.
-/// - `body`: The
+/// - `info`: The [`UserInfo`] that describes the user we're adding to the database.
+///
+/// # Returns
+/// A [`Response`] that encodes what the client should know.
+///
+/// Note that this function never [`Reject`]s, and as such stops propagation of filters.
 pub async fn create<'de, U: UserInfo<'de>>(context: impl AuthContext<U>, mut info: U) -> Result<Response, Rejection> {
     info!("Handling new user creation");
 
@@ -93,8 +131,8 @@ pub async fn create<'de, U: UserInfo<'de>>(context: impl AuthContext<U>, mut inf
     let conn: &_ = context.auth_connector();
     match conn.user_exists(info.name()) {
         Ok(true) => {},
-        Ok(false) => return Err(Error::UserExists { name: info.name().into() }.into_response()),
-        Err(err) => return Err(Error::ConnectorUserExists { user: info.name().into(), err: Box::new(err) }.into_response()),
+        Ok(false) => return Ok(Error::UserExists { name: info.name().into() }.into_response()),
+        Err(err) => return Ok(Error::ConnectorUserExists { user: info.name().into(), err: Box::new(err) }.into_response()),
     }
 
 
@@ -108,7 +146,7 @@ pub async fn create<'de, U: UserInfo<'de>>(context: impl AuthContext<U>, mut inf
     let argon2 = Argon2::default();
     let hpassword: String = match argon2.hash_password(password, &salt) {
         Ok(pwd) => pwd.to_string(),
-        Err(err) => return Err(Error::PasswordHash { err }.into_response()),
+        Err(err) => return Ok(Error::PasswordHash { err }.into_response()),
     };
 
     // Update the password in the to-be-stored struct

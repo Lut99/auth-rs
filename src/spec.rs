@@ -4,7 +4,7 @@
 //  Created:
 //    02 Jan 2024, 13:40:11
 //  Last edited:
-//    02 Jan 2024, 14:16:57
+//    21 Jan 2024, 17:48:05
 //  Auto updated?
 //    Yes
 //
@@ -18,8 +18,19 @@ use serde::{Deserialize, Serialize};
 
 
 /***** LIBRARY *****/
+/// Defines a serializable object that is used to represent errors.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ErrorReply {
+    /// Some short identifier of the error.
+    pub id:      String,
+    /// A more extensive message.
+    pub message: String,
+}
+
+
+
 /// Defines an object that, partly, contains authentication context to handle requests.
-/// 
+///
 /// # Generics
 /// - `U`: A struct that carries all information we might like to know of a user.
 pub trait AuthContext<U> {
@@ -28,44 +39,6 @@ pub trait AuthContext<U> {
     /// # Returns
     /// A reference to a type implementing [`AuthConnector`].
     fn auth_connector(&self) -> &impl AuthConnector<U>;
-}
-
-
-
-/// Defines a connector with a backend database that provides the methods necessary for proper auth handling.
-/// 
-/// # Generics
-/// - `U`: A struct that carries all information we might like to know of a user.
-pub trait AuthConnector<U> {
-    /// Errors to throw for this connector.
-    type Error: Error;
-
-
-    // Read-only methods
-    /// Returns whether the given user exists.
-    ///
-    /// # Arguments
-    /// - `name`: The name to check in the database.
-    ///
-    /// # Returns
-    /// True if a user with this name exists, or false otherwise.
-    ///
-    /// # Errors
-    /// This function may error if we failed to do the database stuff.
-    fn user_exists(&self, name: &str) -> Result<bool, Self::Error>;
-
-
-    // Write methods
-    /// Inserts a new user into the database.
-    /// 
-    /// Note that a check for user uniqueness has already occurred (though it can never hurt to do it twice).
-    /// 
-    /// # Arguments
-    /// - `info`: A type that should be written to the database for this user.
-    /// 
-    /// # Errors
-    /// This function may error if it failed to do the database stuff or if it suspects foul play for some reason.
-    fn insert_user(&self, info: U)
 }
 
 
@@ -93,4 +66,40 @@ pub trait UserInfo<'de>: Deserialize<'de> + Serialize {
     /// # Arguments
     /// - `password`: The new password to set internally.
     fn update_password(&mut self, password: String);
+}
+
+/// Defines a connector with a backend database that provides the methods necessary for proper auth handling.
+///
+/// # Generics
+/// - `U`: A struct that carries all information we might like to know of a user.
+pub trait AuthConnector<U> {
+    /// Errors to throw for this connector.
+    type Error: Error;
+
+
+    // Read-only methods
+    /// Returns whether the given user exists.
+    ///
+    /// # Arguments
+    /// - `name`: The name to check in the database.
+    ///
+    /// # Returns
+    /// True if a user with this name exists, or false otherwise.
+    ///
+    /// # Errors
+    /// This function may error if we failed to do the database stuff.
+    fn user_exists(&self, name: &str) -> Result<bool, Self::Error>;
+
+
+    // Write methods
+    /// Inserts a new user into the database.
+    ///
+    /// Note that a check for user uniqueness has already occurred (though it can never hurt to do it twice).
+    ///
+    /// # Arguments
+    /// - `info`: A type that should be written to the database for this user.
+    ///
+    /// # Errors
+    /// This function may error if it failed to do the database stuff or if it suspects foul play for some reason.
+    fn insert_user(&self, info: U);
 }
