@@ -4,7 +4,7 @@
 //  Created:
 //    02 Jan 2024, 13:45:31
 //  Last edited:
-//    21 Jan 2024, 17:55:45
+//    26 Jan 2024, 23:00:58
 //  Auto updated?
 //    Yes
 //
@@ -42,9 +42,11 @@ enum Error {
 impl Error {
     /// Converts this error into an appropriate [`Response`].
     ///
+    /// Specifically, it's actually a [`Result<Response, Rejection>`] to also reject when possible.
+    ///
     /// # Returns
-    /// A [`Response`] that can be send to the user.
-    fn into_response(self) -> Response {
+    /// A [`Response`] that can be send to the user, or else a [`Rejection`] that hints a next handler might make more sense of this request.
+    fn into_response(self) -> Result<Response, Rejection> {
         use Error::*;
         match &self {
             ConnectorUserExists { .. } | PasswordHash { .. } => {
@@ -60,12 +62,12 @@ impl Error {
                 *res.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
 
                 // Alright done
-                res
+                Ok(res)
             },
 
             UserExists { name } => {
                 // Log the internal error first
-                error!("[{}] {}", StatusCode::CONFLICT.as_u16(), self.trace());
+                debug!("[{}] {}", StatusCode::CONFLICT.as_u16(), self.trace());
 
                 // Show the error in the thing
                 let mut res: Response = Response::new(
@@ -79,7 +81,7 @@ impl Error {
                 *res.status_mut() = StatusCode::CONFLICT;
 
                 // Alright done
-                res
+                Ok(res)
             },
         }
     }
@@ -131,8 +133,8 @@ pub async fn create<'de, U: UserInfo<'de>>(context: impl AuthContext<U>, mut inf
     let conn: &_ = context.auth_connector();
     match conn.user_exists(info.name()) {
         Ok(true) => {},
-        Ok(false) => return Ok(Error::UserExists { name: info.name().into() }.into_response()),
-        Err(err) => return Ok(Error::ConnectorUserExists { user: info.name().into(), err: Box::new(err) }.into_response()),
+        Ok(false) => return Error::UserExists { name: info.name().into() }.into_response(),
+        Err(err) => return Error::ConnectorUserExists { user: info.name().into(), err: Box::new(err) }.into_response(),
     }
 
 
@@ -146,7 +148,7 @@ pub async fn create<'de, U: UserInfo<'de>>(context: impl AuthContext<U>, mut inf
     let argon2 = Argon2::default();
     let hpassword: String = match argon2.hash_password(password, &salt) {
         Ok(pwd) => pwd.to_string(),
-        Err(err) => return Ok(Error::PasswordHash { err }.into_response()),
+        Err(err) => return Error::PasswordHash { err }.into_response(),
     };
 
     // Update the password in the to-be-stored struct
