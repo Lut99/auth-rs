@@ -4,7 +4,7 @@
 //  Created:
 //    02 Jan 2024, 13:38:40
 //  Last edited:
-//    28 Jan 2024, 12:36:08
+//    28 Jan 2024, 13:15:53
 //  Auto updated?
 //    Yes
 //
@@ -19,4 +19,5 @@
 // pub mod login;
 // pub mod manage;
 // pub mod spec;
+#[cfg(feature = "password")]
 pub mod password;
