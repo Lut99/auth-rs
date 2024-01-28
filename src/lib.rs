@@ -4,7 +4,7 @@
 //  Created:
 //    02 Jan 2024, 13:38:40
 //  Last edited:
-//    02 Jan 2024, 13:49:31
+//    28 Jan 2024, 12:36:08
 //  Auto updated?
 //    Yes
 //
@@ -16,6 +16,7 @@
 //
 
 // Declare modules
-pub mod login;
-pub mod manage;
-pub mod spec;
+// pub mod login;
+// pub mod manage;
+// pub mod spec;
+pub mod password;
